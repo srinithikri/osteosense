@@ -143,6 +143,8 @@ section[data-testid="stSidebar"] { display:none !important; }
 # ── Session state ─────────────────────────────────────────────────────────────
 if "subtab"          not in st.session_state: st.session_state.subtab          = "BoneScore"
 if "active_patient"  not in st.session_state: st.session_state.active_patient  = "Harrington, J."
+if "last_patient"    not in st.session_state: st.session_state.last_patient     = None
+if "tscore_sim"      not in st.session_state: st.session_state.tscore_sim       = None
 
 # ── Model ─────────────────────────────────────────────────────────────────────
 LABEL_ORDER              = ["Normal", "Osteopenia", "Osteoporosis"]
@@ -150,18 +152,13 @@ QUS_OSTEOPENIA_THRESHOLD = -1.0
 
 @st.cache_resource
 def load_and_train():
-    raw = pd.read_csv("dataset_heel.csv")
-    df  = pd.DataFrame({
-        "tscore":       pd.to_numeric(raw["QUS_T"],       errors="coerce"),
-        "osteoporosis": pd.to_numeric(raw["osteoporosis"], errors="coerce"),
-    }).dropna().reset_index(drop=True)
+    dxa = pd.read_csv("patient_data_cleaned_dxa.csv")[["tscore", "diagnosis"]]
+    qus = pd.read_csv("patient_data_cleaned_qus.csv")[["tscore", "diagnosis"]]
+    df = pd.concat([dxa, qus], ignore_index=True)
+    df["tscore"]    = pd.to_numeric(df["tscore"], errors="coerce")
+    df["diagnosis"] = df["diagnosis"].str.capitalize()
+    df = df.dropna(subset=["tscore", "diagnosis"]).reset_index(drop=True)
 
-    def classify(row):
-        if row["osteoporosis"] == 1:                          return "Osteoporosis"
-        elif row["tscore"] >= QUS_OSTEOPENIA_THRESHOLD:       return "Normal"
-        else:                                                 return "Osteopenia"
-
-    df["diagnosis"] = df.apply(classify, axis=1)
     le = LabelEncoder(); le.fit(LABEL_ORDER)
     X = df[["tscore"]].values
     y = le.transform(df["diagnosis"])
@@ -227,8 +224,14 @@ patients = {
     },
 }
 
-pt     = patients[st.session_state.active_patient]
-tscore = pt["tscore"]
+pt = patients[st.session_state.active_patient]
+
+# Reset simulator T-score when patient switches
+if st.session_state.last_patient != st.session_state.active_patient:
+    st.session_state.tscore_sim  = pt["tscore"]
+    st.session_state.last_patient = st.session_state.active_patient
+
+tscore = st.session_state.tscore_sim if st.session_state.tscore_sim is not None else pt["tscore"]
 
 probs_raw  = entry["model"].predict_proba([[tscore]])[0]
 prob_dict  = dict(zip(le.classes_, probs_raw))
@@ -490,7 +493,7 @@ with center_col:
 
         hist       = pt["history"]
         hist_dates = [datetime.datetime.strptime(d + "-01", "%Y-%m-%d") for d, _ in hist]
-        hist_vals  = [v for _, v in hist]
+        hist_vals  = [v for _, v in hist[:-1]] + [tscore]
         pt_colors  = [DX_COLORS["Osteoporosis"] if v <= -2.725
                       else (DX_COLORS["Osteopenia"] if v <= -1.0 else DX_COLORS["Normal"])
                       for v in hist_vals]
@@ -661,6 +664,21 @@ with center_col:
 with right_col:
     next_scan = (datetime.datetime.strptime(pt["history"][-1][0] + "-01", "%Y-%m-%d")
                  + datetime.timedelta(days=365)).strftime("%b %Y")
+
+    # T-score simulator
+    st.markdown('<div class="rpanel-card"><div class="rpanel-title">Simulate T-score</div><div style="padding:4px 12px 10px 12px;">', unsafe_allow_html=True)
+    sim_val = st.slider(
+        "T-score (SD)",
+        min_value=-5.0, max_value=2.0,
+        value=float(tscore),
+        step=0.1, format="%.1f",
+        key="tscore_sim",
+        help="Drag to simulate different T-score values and see predictions update live",
+    )
+    sim_dx = "Osteoporosis" if sim_val <= -2.725 else ("Osteopenia" if sim_val <= -1.0 else "Normal")
+    sim_col = DX_COLORS[sim_dx]
+    st.markdown(f'<div style="text-align:center;font-size:0.72rem;color:{sim_col};font-weight:700;margin-top:-6px;">→ {sim_dx}</div>', unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
     # Patient details
     st.markdown(f"""
