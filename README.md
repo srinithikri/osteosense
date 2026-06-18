@@ -119,7 +119,18 @@ model.predict_proba([[tscore]])
 All UI elements update:
   header badge · status bar · metric cards
   AI clinical summary · probability chart
-  trend chart · confidence bars · clinical guidance
+  trend chart · confidence bars · clinical guidance**Portable Heel Ultrasound
+          ↓
+QUS Features
+(BUA, SOS, Stiffness Index)
+          ↓
+Machine Learning Model
+          ↓
+Estimated Bone Health Risk
+          ↓
+DXA Referral Recommendation
+          ↓
+Clinical Dashboard
 ```
 
 ---
