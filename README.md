@@ -91,7 +91,7 @@ We apply **WHO diagnostic thresholds** to assign each patient a class:
 | −2.725 to −1.0 | Osteopenia |
 | < −2.725 | Osteoporosis |
 
-We use **−2.725** (not the commonly cited −2.5) because this is the **Youden's Index optimal cutoff** for calcaneus QUS specifically — published research shows this threshold maximizes sensitivity and specificity for heel ultrasound relative to central DXA.
+We use **−2.725** (not the commonly cited −2.5) because this is the **Youden's Index optimal cutoff** for calcaneus QUS specifically.
 
 ### Model Selection
 
@@ -110,16 +110,7 @@ We use **weighted F1** (not accuracy) because osteoporosis cases are underrepres
 ### How Live Prediction Works
 
 ```
-T-score slider value
-        ↓
-model.predict_proba([[tscore]])
-        ↓
-{ Normal: X%, Osteopenia: Y%, Osteoporosis: Z% }
-        ↓
-All UI elements update:
-  header badge · status bar · metric cards
-  AI clinical summary · probability chart
-  trend chart · confidence bars · clinical guidance**Portable Heel Ultrasound
+Portable Heel Ultrasound
           ↓
 QUS Features
 (BUA, SOS, Stiffness Index)
@@ -137,21 +128,16 @@ Clinical Dashboard
 
 ## Why QUS → T-score Works
 
-The correlation between **calcaneal QUS** and **central DXA T-scores** is well-established in the literature:
+The correlation between **calcaneal QUS** and **central DXA T-scores** is established in the literature:
 
 > r = 0.49 to 0.78 depending on anatomical site  
 > Patel et al. (1998). *Journal of Clinical Densitometry*, 1(3), 235–244.  
 > https://doi.org/10.1385/jcd:1:3:235
 
-This means a heel ultrasound reading isn't as precise as a spine or hip DEXA scan — but at r ≈ 0.55–0.78, it's strong enough to reliably **flag who is at risk**. The goal isn't a perfect score. It's catching the patients who need a DEXA before they fracture.
+This means a heel ultrasound reading isn't as precise as a spine or hip DEXA scan — but at r ≈ 0.55–0.78, it's strong enough to reliably flag who is at risk. The goal isn't a perfect score. It's catching the patients who need a DEXA before they fracture.
 
 ---
 
 ## Future Work
-
 - Expand model inputs from T-score alone to full QUS signal features: **BUA** (Broadband Ultrasound Attenuation), **SOS** (Speed of Sound), **Stiffness Index**, age, BMI, sex — the multi-feature pipeline is already built in `heel.py` and `heel_hgb.py`
 - Obtain truly **paired QUS + DXA data from the same patients** to train a direct QUS-signal → diagnosis model (no T-score bridge required)
-- Deploy the advanced **ensemble model** (HistGradientBoosting + Random Forest + Logistic soft voting) from `heel_hgb.py` once dependencies are bundled
-- Integrate **FRAX fracture risk score** alongside bone density prediction
-- Partner with **InterSystems** for live EHR data integration
-- Deploy on a **portable tablet** for point-of-care use in rural clinics and low-resource settings
