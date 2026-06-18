@@ -31,8 +31,8 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; margin:0; padding
 /* ── Top bar ── */
 .epic-topbar { background:#1b2a4a; display:flex; align-items:center; height:44px; border-bottom:1px solid #111e36; }
 .epic-logo { background:#2a3f6f; color:white; font-size:1rem; font-weight:800; letter-spacing:1px; padding:0 20px; height:44px; display:flex; align-items:center; border-right:1px solid #111e36; min-width:68px; }
-.topbar-tabs { display:flex; height:44px; align-items:stretch; flex:1; }s
-.topbar-tab { color:rgba(255,255,255,0.6); font-size:0.8rem; font-weight:500; padding:0 18px; display:flex; align-items:center; border-bottom:3px solid transparent; white-space:nowrap; }
+.topbar-tabs { display:flex; height:44px; align-items:stretch; flex:1; }
+.topbar-tab { color:rgba(255,255,255,0.7); font-size:0.85rem; font-weight:500; padding:0 24px; display:flex; align-items:center; border-bottom:3px solid transparent; white-space:nowrap; letter-spacing:0.2px; }
 .topbar-tab.active { color:white; border-bottom:3px solid #5b9bd5; font-weight:600; }
 .topbar-right { color:rgba(255,255,255,0.75); font-size:0.76rem; padding:0 20px; white-space:nowrap; }
 
@@ -147,6 +147,9 @@ if "last_patient"    not in st.session_state: st.session_state.last_patient     
 if "tscore_sim"      not in st.session_state: st.session_state.tscore_sim       = None
 
 # ── Model ─────────────────────────────────────────────────────────────────────
+# Training data: patient_data_cleaned_dxa.csv (DXA T-scores) and
+# patient_data_cleaned_qus.csv (calcaneus QUS T-scores) — same clinical region,
+# different patients. Combined to give the model broader T-score coverage.
 LABEL_ORDER              = ["Normal", "Osteopenia", "Osteoporosis"]
 QUS_OSTEOPENIA_THRESHOLD = -1.0
 
@@ -154,7 +157,7 @@ QUS_OSTEOPENIA_THRESHOLD = -1.0
 def load_and_train():
     dxa = pd.read_csv("patient_data_cleaned_dxa.csv")[["tscore", "diagnosis"]]
     qus = pd.read_csv("patient_data_cleaned_qus.csv")[["tscore", "diagnosis"]]
-    df = pd.concat([dxa, qus], ignore_index=True)
+    df  = pd.concat([dxa, qus], ignore_index=True)
     df["tscore"]    = pd.to_numeric(df["tscore"], errors="coerce")
     df["diagnosis"] = df["diagnosis"].str.capitalize()
     df = df.dropna(subset=["tscore", "diagnosis"]).reset_index(drop=True)
@@ -226,9 +229,9 @@ patients = {
 
 pt = patients[st.session_state.active_patient]
 
-# Reset simulator T-score when patient switches
+# Reset simulator when patient switches
 if st.session_state.last_patient != st.session_state.active_patient:
-    st.session_state.tscore_sim  = pt["tscore"]
+    st.session_state.tscore_sim   = pt["tscore"]
     st.session_state.last_patient = st.session_state.active_patient
 
 tscore = st.session_state.tscore_sim if st.session_state.tscore_sim is not None else pt["tscore"]
@@ -302,12 +305,15 @@ st.markdown(tab_html, unsafe_allow_html=True)
 # ════════════════════════════════════════════════════════════════════════════
 #  PATIENT SWITCHER
 # ════════════════════════════════════════════════════════════════════════════
-sw_html = '<div class="patient-switcher"><span class="pt-label">Patient:</span>'
-for pname in patients:
-    cls = "pt-tab active" if pname == st.session_state.active_patient else "pt-tab"
-    sw_html += f'<span class="{cls}">{pname}</span>'
-sw_html += '</div>'
-st.markdown(sw_html, unsafe_allow_html=True)
+st.markdown('<div class="patient-switcher"><span class="pt-label">Patient:</span></div>', unsafe_allow_html=True)
+sw_cols = st.columns(len(patients))
+for col, pname in zip(sw_cols, patients):
+    with col:
+        is_active = pname == st.session_state.active_patient
+        label = f"**{pname}**" if is_active else pname
+        if st.button(label, key=f"pt_{pname}", use_container_width=True):
+            st.session_state.active_patient = pname
+            st.experimental_rerun()
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -414,7 +420,7 @@ with center_col:
             <div class="metric-bar-track">
               <div class="metric-bar-fill" style="width:{prob_pct}%;background:{ts_col};"></div>
             </div>
-            <span class="metric-footer">{pred_label} &nbsp;<span class="chip {CHIP_CLS[pred_label]}">{pred_label}</span></span>
+            <span class="metric-footer"><span class="chip {CHIP_CLS[pred_label]}">{pred_label}</span></span>
           </div>
 
           <div class="metric-cell">
@@ -667,7 +673,7 @@ with right_col:
 
     # T-score simulator
     st.markdown('<div class="rpanel-card"><div class="rpanel-title">Simulate T-score</div><div style="padding:4px 12px 10px 12px;">', unsafe_allow_html=True)
-    sim_val = st.slider(
+    st.slider(
         "T-score (SD)",
         min_value=-5.0, max_value=2.0,
         value=float(tscore),
@@ -675,9 +681,8 @@ with right_col:
         key="tscore_sim",
         help="Drag to simulate different T-score values and see predictions update live",
     )
-    sim_dx = "Osteoporosis" if sim_val <= -2.725 else ("Osteopenia" if sim_val <= -1.0 else "Normal")
-    sim_col = DX_COLORS[sim_dx]
-    st.markdown(f'<div style="text-align:center;font-size:0.72rem;color:{sim_col};font-weight:700;margin-top:-6px;">→ {sim_dx}</div>', unsafe_allow_html=True)
+    sim_dx  = "Osteoporosis" if tscore <= -2.725 else ("Osteopenia" if tscore <= -1.0 else "Normal")
+    st.markdown(f'<div style="text-align:center;font-size:0.72rem;color:{DX_COLORS[sim_dx]};font-weight:700;margin-top:-6px;">→ {sim_dx}</div>', unsafe_allow_html=True)
     st.markdown('</div></div>', unsafe_allow_html=True)
 
     # Patient details
@@ -738,8 +743,3 @@ with right_col:
         "Osteopenia":   "⚡ <b>Lifestyle modification.</b> Calcium + Vitamin D. Weight-bearing exercise. Smoking cessation if applicable. Re-scan in 1–2 years.",
         "Normal":       "✓ <b>No intervention needed.</b> Continue routine USPSTF screening. Maintain adequate calcium intake. Re-scan per age-based guidelines.",
     }[pred_label]
-    st.markdown(f"""
-    <div class="rpanel-card">
-      <div class="rpanel-title">Clinical guidance</div>
-      <div style="padding:10px 12px;font-size:0.74rem;line-height:1.65;color:#2d3748;">{guidance}</div>
-    </div>""", unsafe_allow_html=True)
